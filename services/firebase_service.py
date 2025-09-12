@@ -52,22 +52,47 @@ class FirebaseService:
             
             # Add attachments if present
             if email_data.attachments:
-                firebase_data['attachments'] = [
-                    {
-                        'filename': att.filename,
-                        'content_type': att.content_type,
-                        'size': att.size,
-                        'data': att.data
-                    } for att in email_data.attachments
-                ]
+                print(f"Processing {len(email_data.attachments)} attachments for email")
+                firebase_data['attachments'] = []
+                for i, att in enumerate(email_data.attachments):
+                    try:
+                        # Convert attachment to simple dict to avoid Firebase nested entity issues
+                        attachment_dict = {
+                            'filename': str(att.filename) if att.filename else '',
+                            'content_type': str(att.content_type) if att.content_type else '',
+                            'size': int(att.size) if att.size is not None else 0,
+                            'data': str(att.data) if att.data else ''
+                        }
+                        firebase_data['attachments'].append(attachment_dict)
+                        print(f"Processed attachment {i+1}: {attachment_dict['filename']} ({attachment_dict['size']} bytes)")
+                    except Exception as e:
+                        print(f"Error processing attachment {i+1}: {e}")
+                        continue
                 firebase_data['has_attachments'] = True
                 firebase_data['attachment_count'] = len(email_data.attachments)
+                print(f"Total attachments processed: {len(firebase_data['attachments'])}")
             else:
                 firebase_data['has_attachments'] = False
                 firebase_data['attachment_count'] = 0
+                print("No attachments to process")
+            
+            # Check data size before storing
+            total_size = len(str(firebase_data))
+            print(f"Total email data size: {total_size} bytes")
+            
+            if total_size > 1000000:  # 1MB limit
+                print(f"Warning: Email data size ({total_size} bytes) exceeds 1MB limit")
+                # For large emails, remove attachment data and store references only
+                if firebase_data.get('attachments'):
+                    print("Large email with attachments detected - storing attachment metadata only")
+                    # Store only metadata, not the actual data
+                    for att in firebase_data['attachments']:
+                        att['data'] = f"[LARGE_FILE_{att['size']}_BYTES]"
+                    print("Replaced attachment data with size indicators")
             
             # Store in Firebase
             email_ref.set(firebase_data)
+            print(f"Successfully stored email {email_id} in Firebase")
             
             return email_id
             

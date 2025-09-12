@@ -140,12 +140,17 @@ class EmailPoller:
             email_data = await self.parse_email(email_message)
             
             if email_data:
-                # Store in Firebase
-                email_id_str = await self.firebase_service.store_email(email_data)
-                logger.info(f"Stored email {email_id_str} in Firebase")
-                
-                # Mark as read
-                mail.store(email_id, '+FLAGS', '\\Seen')
+                try:
+                    # Store in Firebase
+                    email_id_str = await self.firebase_service.store_email(email_data)
+                    logger.info(f"Stored email {email_id_str} in Firebase")
+                    
+                    # Mark as read
+                    mail.store(email_id, '+FLAGS', '\\Seen')
+                except Exception as e:
+                    logger.error(f"Error storing email in Firebase: {e}")
+                    # Don't mark as read if storage failed
+                    raise
             
         except Exception as e:
             logger.error(f"Error processing email {email_id}: {e}")
@@ -198,19 +203,31 @@ class EmailPoller:
                     content_disposition = str(part.get("Content-Disposition"))
                     
                     if "attachment" in content_disposition:
-                        filename = part.get_filename()
-                        if filename:
-                            content_type = part.get_content_type()
-                            size = len(part.get_payload(decode=True))
-                            data = base64.b64encode(part.get_payload(decode=True)).decode('utf-8')
-                            
-                            attachment = EmailAttachmentSchema(
-                                filename=filename,
-                                content_type=content_type,
-                                size=size,
-                                data=data
-                            )
-                            attachments.append(attachment)
+                        try:
+                            filename = part.get_filename()
+                            if filename:
+                                content_type = part.get_content_type()
+                                
+                                # Safely decode payload
+                                payload = part.get_payload(decode=True)
+                                if payload is None:
+                                    logger.warning(f"Could not decode payload for attachment: {filename}")
+                                    continue
+                                
+                                size = len(payload)
+                                data = base64.b64encode(payload).decode('utf-8')
+                                
+                                attachment = EmailAttachmentSchema(
+                                    filename=filename,
+                                    content_type=content_type,
+                                    size=size,
+                                    data=data
+                                )
+                                attachments.append(attachment)
+                                logger.info(f"Successfully processed attachment: {filename} ({size} bytes)")
+                        except Exception as e:
+                            logger.error(f"Error processing attachment {filename if 'filename' in locals() else 'unknown'}: {e}")
+                            continue
             
             # Create email data schema
             email_data = EmailDataSchema(
@@ -224,6 +241,12 @@ class EmailPoller:
                 message_id=message_id,
                 user_token=None  # Will be set later if needed
             )
+            
+            # Log attachment info for debugging
+            if attachments:
+                logger.info(f"Email parsed with {len(attachments)} attachments: {[att.filename for att in attachments]}")
+            else:
+                logger.info("Email parsed with no attachments")
             
             return email_data
             
