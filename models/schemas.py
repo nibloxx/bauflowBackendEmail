@@ -40,6 +40,11 @@ class EmailDataSchema(BaseModel):
     received_at: datetime = Field(..., description="When the email was received")
     message_id: str = Field(..., description="Unique message identifier")
     user_token: Optional[str] = Field(None, description="JWT token for user identification")
+    
+    # User and project lookup fields (populated during processing)
+    sender_username: Optional[str] = Field(None, description="First name of sender (from users collection)")
+    sender_user_id: Optional[str] = Field(None, description="User ID of sender")
+    assigned_project: Optional[dict] = Field(None, description="Assigned project object from projects collection")
 
 class WebhookResponseSchema(BaseModel):
     """Schema for webhook response"""

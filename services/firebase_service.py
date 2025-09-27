@@ -8,9 +8,13 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime, timezone
 from firebase_admin import firestore
 from firebase_admin.firestore import Query
+import logging
 
 from config.firebase_config import get_firestore_client
 from models.schemas import EmailDataSchema, EmailFilterSchema
+from services.user_project_service import UserProjectService
+
+logger = logging.getLogger(__name__)
 
 class FirebaseService:
     """Service for Firebase Firestore operations"""
@@ -18,6 +22,7 @@ class FirebaseService:
     def __init__(self):
         self.db = get_firestore_client()
         self.collection_name = 'emails'
+        self.user_project_service = UserProjectService()
     
     async def store_email(self, email_data: EmailDataSchema) -> str:
         """
@@ -34,6 +39,19 @@ class FirebaseService:
             email_ref = self.db.collection(self.collection_name).document()
             email_id = email_ref.id
             
+            # Lookup user and project data
+            logger.info(f"Looking up user and project data for email: {email_data.from_email}")
+            user_project_data = await self.user_project_service.get_user_and_project_data(email_data.from_email)
+            
+            # Log lookup results
+            first_name = user_project_data['user']['username']  # Note: 'username' key contains firstName value
+            user_found = user_project_data['user']['found']
+            project_found = user_project_data['project']['found']
+            project_name = user_project_data['project']['project'].get('name', 'N/A') if project_found else None
+            
+            logger.info(f"User lookup result: firstName='{first_name}', found={user_found}")
+            logger.info(f"Project lookup result: found={project_found}, project_name='{project_name}'")
+            
             # Prepare data for Firebase
             firebase_data = {
                 'subject': email_data.subject,
@@ -47,7 +65,16 @@ class FirebaseService:
                 'created_at': datetime.now(timezone.utc),
                 'processed': False,
                 'isDeleted': False,
-                'updated_at': datetime.now(timezone.utc)
+                'updated_at': datetime.now(timezone.utc),
+                
+                # User lookup data (sender_username contains firstName)
+                'sender_username': user_project_data['user']['username'],
+                'sender_user_id': user_project_data['user']['user_id'],
+                'sender_found': user_project_data['user']['found'],
+                
+                # Project lookup data
+                'assigned_project': user_project_data['project']['project'] if user_project_data['project']['found'] else None,
+                'project_found': user_project_data['project']['found']
             }
             
             # Add attachments if present
