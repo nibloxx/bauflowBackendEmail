@@ -57,6 +57,8 @@ class FirebaseService:
                 'subject': email_data.subject,
                 'from_email': email_data.from_email,
                 'to_email': email_data.to_email,
+                'cc_email': email_data.cc_email or '',
+                'bcc_email': email_data.bcc_email or '',
                 'body': email_data.body,
                 'html_body': email_data.html_body,
                 'received_at': email_data.received_at,

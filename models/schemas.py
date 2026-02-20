@@ -34,6 +34,8 @@ class EmailDataSchema(BaseModel):
     subject: str = Field(..., description="Email subject line")
     from_email: EmailStr = Field(..., description="Sender email address")
     to_email: EmailStr = Field(..., description="Recipient email address")
+    cc_email: Optional[str] = Field(None, description="CC recipients (comma-separated)")
+    bcc_email: Optional[str] = Field(None, description="BCC recipients (comma-separated)")
     body: str = Field(..., description="Plain text email body")
     html_body: Optional[str] = Field(None, description="HTML email body")
     attachments: Optional[List[EmailAttachmentSchema]] = Field(None, description="Email attachments")

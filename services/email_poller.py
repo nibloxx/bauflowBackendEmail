@@ -162,6 +162,8 @@ class EmailPoller:
             subject = email_message.get('Subject', '')
             from_email = email_message.get('From', '')
             to_email = email_message.get('To', '')
+            cc_email = email_message.get('Cc', '') or None
+            bcc_email = email_message.get('Bcc', '') or None
             message_id = email_message.get('Message-ID', '')
             date_str = email_message.get('Date', '')
             
@@ -234,6 +236,8 @@ class EmailPoller:
                 subject=subject,
                 from_email=from_email,
                 to_email=to_email,
+                cc_email=cc_email,
+                bcc_email=bcc_email,
                 body=body,
                 html_body=html_body if html_body else None,
                 attachments=attachments if attachments else None,
