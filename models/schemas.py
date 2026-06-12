@@ -42,6 +42,8 @@ class EmailDataSchema(BaseModel):
     received_at: datetime = Field(..., description="When the email was received")
     message_id: str = Field(..., description="Unique message identifier")
     user_token: Optional[str] = Field(None, description="JWT token for user identification")
+    owner_user_id: Optional[str] = Field(None, description="Firestore user ID of the mailbox owner")
+    mailbox_email: Optional[str] = Field(None, description="Email address of the mailbox that received this email")
     
     # User and project lookup fields (populated during processing)
     sender_username: Optional[str] = Field(None, description="First name of sender (from users collection)")
@@ -61,9 +63,39 @@ class EmailListResponseSchema(BaseModel):
     limit: int = Field(..., description="Number of emails requested")
     offset: int = Field(0, description="Number of emails skipped")
 
+class UserEmailAccountSchema(BaseModel):
+    """Schema for registering a user's email mailbox credentials"""
+    email: EmailStr = Field(..., description="User's email address for IMAP polling")
+    app_password: str = Field(..., description="App password for the email account")
+    email_polling_enabled: bool = Field(True, description="Whether to poll this mailbox")
+    email_host: Optional[str] = Field(None, description="Custom IMAP host (auto-detected if omitted)")
+    email_port: Optional[int] = Field(None, description="Custom IMAP port")
+    email_use_ssl: Optional[bool] = Field(None, description="Use SSL for IMAP connection")
+
+class UserEmailAccountResponseSchema(BaseModel):
+    """Response after registering a user email account"""
+    success: bool
+    message: str
+    user_id: str
+    email: str
+    email_polling_enabled: bool
+    imap_config: dict
+
+class UserEmailAccountStatusSchema(BaseModel):
+    """Email account status without sensitive credentials"""
+    user_id: str
+    email: Optional[str] = None
+    email_polling_enabled: bool = True
+    has_credentials: bool = False
+    last_polled_at: Optional[datetime] = None
+    last_poll_status: Optional[str] = None
+    last_poll_error: Optional[str] = None
+
 class EmailFilterSchema(BaseModel):
     """Schema for email filtering"""
     user_token: Optional[str] = Field(None, description="Filter by user token")
+    owner_user_id: Optional[str] = Field(None, description="Filter by mailbox owner user ID")
+    mailbox_email: Optional[str] = Field(None, description="Filter by recipient mailbox email")
     from_email: Optional[str] = Field(None, description="Filter by sender email")
     subject_contains: Optional[str] = Field(None, description="Filter by subject containing text")
     has_attachments: Optional[bool] = Field(None, description="Filter by presence of attachments")

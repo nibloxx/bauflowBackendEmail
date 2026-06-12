@@ -77,6 +77,8 @@ async def get_emails(
     limit: int = Query(10, ge=1, le=100, description="Number of emails to retrieve"),
     offset: int = Query(0, ge=0, description="Number of emails to skip"),
     user_token: Optional[str] = Query(None, description="Filter by user token"),
+    owner_user_id: Optional[str] = Query(None, description="Filter by mailbox owner user ID"),
+    mailbox_email: Optional[str] = Query(None, description="Filter by recipient mailbox email"),
     from_email: Optional[str] = Query(None, description="Filter by sender email"),
     has_attachments: Optional[bool] = Query(None, description="Filter by presence of attachments"),
     processed: Optional[bool] = Query(None, description="Filter by processing status")
@@ -99,6 +101,8 @@ async def get_emails(
         # Create filter object
         filters = EmailFilterSchema(
             user_token=user_token,
+            owner_user_id=owner_user_id,
+            mailbox_email=mailbox_email,
             from_email=from_email,
             has_attachments=has_attachments,
             processed=processed
@@ -266,7 +270,8 @@ async def delete_email(
 async def search_emails(
     q: str = Query(..., description="Search term"),
     fields: Optional[List[str]] = Query(None, description="Fields to search in"),
-    limit: int = Query(10, ge=1, le=100, description="Maximum number of results")
+    limit: int = Query(10, ge=1, le=100, description="Maximum number of results"),
+    owner_user_id: Optional[str] = Query(None, description="Filter by mailbox owner user ID"),
 ):
     """
     Search emails by text content
@@ -283,7 +288,8 @@ async def search_emails(
         result = await firebase_service.search_emails(
             search_term=q,
             search_fields=fields,
-            limit=limit
+            limit=limit,
+            owner_user_id=owner_user_id,
         )
         
         return result
@@ -309,6 +315,7 @@ async def health_check():
         # Test email configuration
         email_config_status = 'configured' if email_config.validate_config() else 'not_configured'
         email_polling_status = 'enabled' if email_poller.poll_enabled else 'disabled'
+        active_accounts = await email_poller.get_active_account_count()
         
         return {
             'status': 'healthy',
@@ -317,7 +324,8 @@ async def health_check():
                 'firebase': 'connected',
                 'email_processor': 'ready',
                 'email_config': email_config_status,
-                'email_polling': email_polling_status
+                'email_polling': email_polling_status,
+                'active_mailboxes': active_accounts,
             }
         }
         
@@ -363,12 +371,15 @@ async def get_email_config():
         Dict containing email configuration
     """
     try:
+        active_accounts = await email_poller.get_active_account_count()
         return {
+            'mode': 'multi_user' if active_accounts > 0 else 'legacy',
+            'active_mailboxes': active_accounts,
             'provider': email_config.provider.value,
             'imap_config': email_config.get_imap_config(),
             'smtp_config': email_config.get_smtp_config(),
             'connection_string': email_config.get_connection_string(),
-            'configured': email_config.validate_config(),
+            'configured': email_config.validate_config() or active_accounts > 0,
             'polling_enabled': email_poller.poll_enabled,
             'poll_interval': email_poller.poll_interval
         }

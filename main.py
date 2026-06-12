@@ -12,6 +12,7 @@ import uvicorn
 import asyncio
 
 from routes.webhook import router
+from routes.users import router as users_router
 from config.firebase_config import initialize_firebase
 from services.email_poller import email_poller
 
@@ -77,6 +78,7 @@ def create_app() -> FastAPI:
     
     # Include webhook routes
     app.include_router(router)
+    app.include_router(users_router)
     
     # Root endpoint
     @app.get("/")
@@ -88,6 +90,8 @@ def create_app() -> FastAPI:
             "endpoints": {
                 "webhook": "/webhook/email",
                 "emails": "/webhook/emails",
+                "user_emails": "/webhook/users/{user_id}/emails",
+                "register_mailbox": "/webhook/users/{user_id}/email-account",
                 "health": "/webhook/health",
                 "docs": "/docs"
             }

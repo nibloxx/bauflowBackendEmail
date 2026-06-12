@@ -12,24 +12,13 @@ from pathlib import Path
 
 def check_environment():
     """Check if required environment variables are set"""
-    required_vars = [
-        'EMAIL_USERNAME',
-        'EMAIL_PASSWORD'
-    ]
-    
-    missing_vars = []
-    for var in required_vars:
-        if not os.getenv(var):
-            missing_vars.append(var)
-    
-    if missing_vars:
-        print("❌ Missing required environment variables:")
-        for var in missing_vars:
-            print(f"   - {var}")
-        print("\nPlease create a .env file with the required configuration.")
-        print("See GMAIL_SETUP.md for detailed instructions.")
-        return False
-    
+    has_legacy_email = os.getenv('EMAIL_USERNAME') and os.getenv('EMAIL_PASSWORD')
+
+    if not has_legacy_email:
+        print("ℹ️  No legacy EMAIL_USERNAME/EMAIL_PASSWORD set.")
+        print("   Multi-user mode: configure email + app_password on each user in Firestore.")
+        print("   Or set EMAIL_USERNAME/EMAIL_PASSWORD for single-mailbox fallback.")
+
     return True
 
 def check_firebase_config():
@@ -60,7 +49,7 @@ def main():
     
     # Display configuration
     print("✅ Environment configuration looks good!")
-    print(f"📧 Email: {os.getenv('EMAIL_USERNAME', 'Not set')}")
+    print(f"📧 Legacy email: {os.getenv('EMAIL_USERNAME', 'Not set (using Firestore users)')}")
     print(f"🔥 Firebase: {'Configured' if os.getenv('FIREBASE_PROJECT_ID') else 'Using service account key'}")
     print(f"⏱️  Poll interval: {os.getenv('EMAIL_POLL_INTERVAL', '60')} seconds")
     

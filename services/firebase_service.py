@@ -24,6 +24,22 @@ class FirebaseService:
         self.collection_name = 'emails'
         self.user_project_service = UserProjectService()
     
+    async def email_exists(self, message_id: str, owner_user_id: str) -> bool:
+        """Check if an email was already stored for this user and message ID."""
+        if not message_id or not owner_user_id:
+            return False
+        try:
+            query = (
+                self.db.collection(self.collection_name)
+                .where("message_id", "==", message_id)
+                .where("owner_user_id", "==", owner_user_id)
+                .limit(1)
+            )
+            return len(list(query.stream())) > 0
+        except Exception as e:
+            logger.error(f"Error checking email duplicate: {e}")
+            return False
+
     async def store_email(self, email_data: EmailDataSchema) -> str:
         """
         Store email data in Firebase
@@ -64,6 +80,8 @@ class FirebaseService:
                 'received_at': email_data.received_at,
                 'message_id': email_data.message_id,
                 'user_token': email_data.user_token,
+                'owner_user_id': email_data.owner_user_id,
+                'mailbox_email': email_data.mailbox_email or email_data.to_email,
                 'created_at': datetime.now(timezone.utc),
                 'processed': False,
                 'isDeleted': False,
@@ -150,6 +168,10 @@ class FirebaseService:
             
             # Apply filters
             if filters:
+                if filters.owner_user_id:
+                    query = query.where('owner_user_id', '==', filters.owner_user_id)
+                if filters.mailbox_email:
+                    query = query.where('mailbox_email', '==', filters.mailbox_email)
                 if filters.user_token:
                     query = query.where('user_token', '==', filters.user_token)
                 if filters.from_email:
@@ -194,6 +216,10 @@ class FirebaseService:
             # Get total count (this is expensive, consider caching)
             total_query = self.db.collection(self.collection_name)
             if filters:
+                if filters.owner_user_id:
+                    total_query = total_query.where('owner_user_id', '==', filters.owner_user_id)
+                if filters.mailbox_email:
+                    total_query = total_query.where('mailbox_email', '==', filters.mailbox_email)
                 if filters.user_token:
                     total_query = total_query.where('user_token', '==', filters.user_token)
                 if filters.from_email:
@@ -292,7 +318,8 @@ class FirebaseService:
         self, 
         search_term: str, 
         search_fields: List[str] = None,
-        limit: int = 10
+        limit: int = 10,
+        owner_user_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Search emails by text content
@@ -314,7 +341,9 @@ class FirebaseService:
             # For production, consider using Algolia or Elasticsearch
             
             query = self.db.collection(self.collection_name)
-            docs = list(query.limit(limit).stream())
+            if owner_user_id:
+                query = query.where('owner_user_id', '==', owner_user_id)
+            docs = list(query.limit(limit * 5).stream())
             
             results = []
             search_term_lower = search_term.lower()
@@ -333,6 +362,8 @@ class FirebaseService:
                 
                 if found:
                     results.append(email_data)
+                    if len(results) >= limit:
+                        break
             
             return {
                 'emails': results,

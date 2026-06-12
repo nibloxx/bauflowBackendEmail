@@ -113,5 +113,48 @@ class EmailConfig:
         config = self.get_imap_config()
         return f"{config['host']}:{config['port']} (SSL: {config['use_ssl']})"
 
+    @staticmethod
+    def detect_provider_for_email(email: str) -> EmailProvider:
+        """Detect email provider from an email address."""
+        email_lower = email.lower()
+        if "@gmail.com" in email_lower:
+            return EmailProvider.GMAIL
+        if "@outlook.com" in email_lower or "@hotmail.com" in email_lower:
+            return EmailProvider.OUTLOOK
+        if "@yahoo.com" in email_lower:
+            return EmailProvider.YAHOO
+        return EmailProvider.CUSTOM
+
+    @classmethod
+    def get_imap_config_for_email(
+        cls,
+        email: str,
+        custom_host: Optional[str] = None,
+        custom_port: Optional[int] = None,
+        custom_use_ssl: Optional[bool] = None,
+    ) -> Dict[str, Any]:
+        """Get IMAP settings for a specific email address."""
+        if custom_host:
+            return {
+                "host": custom_host,
+                "port": int(custom_port or 993),
+                "use_ssl": custom_use_ssl if custom_use_ssl is not None else True,
+            }
+
+        provider = cls.detect_provider_for_email(email)
+        if provider == EmailProvider.CUSTOM:
+            return {
+                "host": os.getenv("EMAIL_HOST", "imap.gmail.com"),
+                "port": int(os.getenv("EMAIL_PORT", "993")),
+                "use_ssl": os.getenv("EMAIL_USE_SSL", "true").lower() == "true",
+            }
+
+        config = cls.PROVIDER_CONFIGS[provider]
+        return {
+            "host": config["host"],
+            "port": config["port"],
+            "use_ssl": config["use_ssl"],
+        }
+
 # Global email config instance
 email_config = EmailConfig()
